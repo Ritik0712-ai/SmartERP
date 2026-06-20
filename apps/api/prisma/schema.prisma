@@ -1,0 +1,837 @@
+// SmartERP Prisma Schema
+// Multi-tenant ERP for Billing, Inventory & Accounting
+// Database: Supabase PostgreSQL
+// ORM: Prisma 5
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =====================================================================
+// ENUMS
+// =====================================================================
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  SALES_OPERATOR
+  INVENTORY_OPERATOR
+}
+
+enum GroupType {
+  ASSET
+  LIABILITY
+  INCOME
+  EXPENSE
+}
+
+enum VoucherTypeCode {
+  PURCHASE
+  SALES
+  RECEIPT
+  PAYMENT
+  JOURNAL
+  CONTRA
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+enum InventoryTxnType {
+  PURCHASE
+  SALE
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+  PARTIALLY_PAID
+}
+
+enum InvoiceDocumentType {
+  INVOICE
+  PROFORMA
+  QUOTATION
+  ESTIMATE
+}
+
+enum GstType {
+  CGST_SGST
+  IGST
+}
+
+enum ChequeStatus {
+  ISSUED
+  DEPOSITED
+  CLEARED
+  BOUNCED
+  CANCELLED
+}
+
+enum BankTxnType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER_IN
+  TRANSFER_OUT
+  RECONCILIATION
+}
+
+enum ReconciliationStatus {
+  PENDING
+  RECONCILED
+  DISPUTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  REFRESH
+  VIEW
+  EXPORT
+  PRINT
+}
+
+enum Currency {
+  INR
+  USD
+  EUR
+  GBP
+}
+
+// =====================================================================
+// AUTH & IDENTITY
+// =====================================================================
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(255)
+  email           String   @unique @db.VarChar(255)
+  passwordHash    String   @map("password_hash") @db.Text
+  isActive        Boolean  @default(true) @map("is_active")
+  emailVerified   Boolean  @default(false) @map("email_verified")
+  lastLogin       DateTime? @map("last_login") @db.Timestamptz(6)
+  avatarUrl       String?  @map("avatar_url") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  companyRoles      UserCompanyRole[]
+  refreshTokens     RefreshToken[]
+  createdCompanies  Company[]          @relation("CompanyCreatedBy")
+  createdVouchers   Voucher[]          @relation("VoucherCreatedBy")
+  auditLogs         AuditLog[]
+
+  @@index([isActive])
+  @@index([email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  tokenHash   String   @map("token_hash") @db.Text
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  revoked     Boolean  @default(false)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedBy  String?  @map("replaced_by") @db.Uuid
+  userAgent   String?  @map("user_agent") @db.Text
+  ipAddress   String?  @map("ip_address") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// =====================================================================
+// COMPANIES (MULTI-TENANT ROOT)
+// =====================================================================
+
+model Company {
+  id                  String   @id @default(uuid()) @db.Uuid
+  name                String   @db.VarChar(255)
+  address             String?  @db.Text
+  contactNumber       String?  @map("contact_number") @db.VarChar(20)
+  email               String?  @db.VarChar(255)
+  gstNumber           String?  @map("gst_number") @db.VarChar(50)
+  panNumber           String?  @map("pan_number") @db.VarChar(20)
+  state               String?  @db.VarChar(100)
+  stateCode           String?  @map("state_code") @db.VarChar(10)
+  currency            Currency @default(INR)
+  financialYearStart  DateTime @map("financial_year_start") @db.Date
+  financialYearEnd    DateTime @map("financial_year_end") @db.Date
+  logoUrl             String?  @map("logo_url") @db.Text
+  isActive            Boolean  @default(true) @map("is_active")
+  createdById         String   @map("created_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  createdBy           User              @relation("CompanyCreatedBy", fields: [createdById], references: [id])
+  userRoles           UserCompanyRole[]
+  financialYears      FinancialYear[]
+  ledgerGroups        LedgerGroup[]
+  ledgers             Ledger[]
+  customers           Customer[]
+  suppliers           Supplier[]
+  units               Unit[]
+  stockGroups         StockGroup[]
+  stockItems          StockItem[]
+  vouchers            Voucher[]
+  invoices            Invoice[]
+  bankTransactions    BankTransaction[]
+  cheques             Cheque[]
+  creditNotes         CreditNote[]
+  debitNotes          DebitNote[]
+  gstRecords          GstRecord[]
+  inventoryTransactions InventoryTransaction[]
+  auditLogs           AuditLog[]
+
+  @@index([createdById])
+  @@index([name])
+  @@index([isActive])
+  @@map("companies")
+}
+
+model UserCompanyRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  role      UserRole
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
+  @@index([role])
+  @@map("user_company_roles")
+}
+
+model FinancialYear {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  yearName    String   @map("year_name") @db.VarChar(100)
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  isCurrent   Boolean  @default(false) @map("is_current")
+  isClosed    Boolean  @default(false) @map("is_closed")
+  closedAt    DateTime? @map("closed_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, yearName])
+  @@index([companyId])
+  @@index([isCurrent])
+  @@map("financial_years")
+}
+
+// =====================================================================
+// ACCOUNTING — LEDGERS
+// =====================================================================
+
+model LedgerGroup {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  name         String    @db.VarChar(255)
+  parentGroupId String?  @map("parent_group_id") @db.Uuid
+  groupType    GroupType @map("group_type")
+  description  String?   @db.Text
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parentGroup LedgerGroup?  @relation("LedgerGroupHierarchy", fields: [parentGroupId], references: [id])
+  children    LedgerGroup[] @relation("LedgerGroupHierarchy")
+  ledgers     Ledger[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([parentGroupId])
+  @@index([groupType])
+  @@map("ledger_groups")
+}
+
+model Ledger {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  ledgerGroupId   String   @map("ledger_group_id") @db.Uuid
+  name            String   @db.VarChar(255)
+  openingBalance  Decimal  @default(0) @map("opening_balance") @db.Decimal(18, 2)
+  currentBalance  Decimal  @default(0) @map("current_balance") @db.Decimal(18, 2)
+  description     String?  @db.Text
+  isActive        Boolean  @default(true) @map("is_active")
+  isSystem        Boolean  @default(false) @map("is_system")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerGroup      LedgerGroup      @relation(fields: [ledgerGroupId], references: [id])
+  voucherEntries   VoucherEntry[]
+  customers        Customer[]
+  suppliers        Supplier[]
+  bankTransactions BankTransaction[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([ledgerGroupId])
+  @@index([isActive])
+  @@map("ledgers")
+}
+
+// =====================================================================
+// PARTIES — CUSTOMERS & SUPPLIERS
+// =====================================================================
+
+model Customer {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  ledgerId        String   @map("ledger_id") @db.Uuid
+  name            String   @db.VarChar(255)
+  mobile          String?  @db.VarChar(20)
+  email           String?  @db.VarChar(255)
+  address         String?  @db.Text
+  gstNumber       String?  @map("gst_number") @db.VarChar(50)
+  panNumber       String?  @map("pan_number") @db.VarChar(20)
+  state           String?  @db.VarChar(100)
+  stateCode       String?  @map("state_code") @db.VarChar(10)
+  openingBalance  Decimal  @default(0) @map("opening_balance") @db.Decimal(18, 2)
+  creditLimit     Decimal? @map("credit_limit") @db.Decimal(18, 2)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledger   Ledger    @relation(fields: [ledgerId], references: [id])
+  invoices Invoice[]
+
+  @@index([companyId])
+  @@index([ledgerId])
+  @@index([name])
+  @@index([mobile])
+  @@index([isActive])
+  @@map("customers")
+}
+
+model Supplier {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  ledgerId        String   @map("ledger_id") @db.Uuid
+  name            String   @db.VarChar(255)
+  mobile          String?  @db.VarChar(20)
+  email           String?  @db.VarChar(255)
+  address         String?  @db.Text
+  gstNumber       String?  @map("gst_number") @db.VarChar(50)
+  panNumber       String?  @map("pan_number") @db.VarChar(20)
+  state           String?  @db.VarChar(100)
+  stateCode       String?  @map("state_code") @db.VarChar(10)
+  openingBalance  Decimal  @default(0) @map("opening_balance") @db.Decimal(18, 2)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledger  Ledger  @relation(fields: [ledgerId], references: [id])
+
+  @@index([companyId])
+  @@index([ledgerId])
+  @@index([name])
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+// =====================================================================
+// INVENTORY
+// =====================================================================
+
+model Unit {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(50)
+  symbol    String?  @db.VarChar(20)
+  decimals  Int      @default(2)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems StockItem[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("units")
+}
+
+model StockGroup {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  name          String   @db.VarChar(255)
+  parentGroupId String?  @map("parent_group_id") @db.Uuid
+  description   String?  @db.Text
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parentGroup StockGroup?  @relation("StockGroupHierarchy", fields: [parentGroupId], references: [id])
+  children    StockGroup[] @relation("StockGroupHierarchy")
+  stockItems  StockItem[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([parentGroupId])
+  @@map("stock_groups")
+}
+
+model StockItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  stockGroupId      String   @map("stock_group_id") @db.Uuid
+  unitId            String   @map("unit_id") @db.Uuid
+  name              String   @db.VarChar(255)
+  sku               String   @db.VarChar(100)
+  barcode           String?  @db.VarChar(100)
+  description       String?  @db.Text
+  hsnCode           String?  @map("hsn_code") @db.VarChar(20)
+  purchasePrice     Decimal  @default(0) @map("purchase_price") @db.Decimal(18, 2)
+  sellingPrice      Decimal  @default(0) @map("selling_price") @db.Decimal(18, 2)
+  mrp               Decimal? @db.Decimal(18, 2)
+  gstPercentage     Decimal  @default(0) @map("gst_percentage") @db.Decimal(5, 2)
+  openingQuantity   Decimal  @default(0) @map("opening_quantity") @db.Decimal(18, 2)
+  currentQuantity   Decimal  @default(0) @map("current_quantity") @db.Decimal(18, 2)
+  reorderLevel      Decimal? @map("reorder_level") @db.Decimal(18, 2)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company              Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockGroup           StockGroup             @relation(fields: [stockGroupId], references: [id])
+  unit                 Unit                   @relation(fields: [unitId], references: [id])
+  inventoryTxns        InventoryTransaction[]
+  invoiceItems         InvoiceItem[]
+  creditNoteItems      CreditNoteItem[]
+  debitNoteItems       DebitNoteItem[]
+
+  @@unique([companyId, sku])
+  @@index([companyId])
+  @@index([stockGroupId])
+  @@index([unitId])
+  @@index([name])
+  @@index([isActive])
+  @@map("stock_items")
+}
+
+model InventoryTransaction {
+  id              String           @id @default(uuid()) @db.Uuid
+  companyId       String           @map("company_id") @db.Uuid
+  voucherId       String?          @map("voucher_id") @db.Uuid
+  stockItemId     String           @map("stock_item_id") @db.Uuid
+  transactionType InventoryTxnType @map("transaction_type")
+  quantity        Decimal          @db.Decimal(18, 2)
+  rate            Decimal          @db.Decimal(18, 2)
+  amount          Decimal          @db.Decimal(18, 2)
+  batchNumber     String?          @map("batch_number") @db.VarChar(100)
+  remarks         String?          @db.Text
+  transactionDate DateTime         @map("transaction_date") @db.Date
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucher   Voucher?   @relation(fields: [voucherId], references: [id])
+  stockItem StockItem  @relation(fields: [stockItemId], references: [id])
+
+  @@index([companyId])
+  @@index([voucherId])
+  @@index([stockItemId])
+  @@index([transactionDate])
+  @@index([transactionType])
+  @@map("inventory_transactions")
+}
+
+// =====================================================================
+// VOUCHER ENGINE — THE HEART
+// =====================================================================
+
+model VoucherType {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        VoucherTypeCode  @unique
+  name        String           @db.VarChar(100)
+  description String?          @db.Text
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  vouchers Voucher[]
+
+  @@map("voucher_types")
+}
+
+model Voucher {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  voucherTypeId   String   @map("voucher_type_id") @db.Uuid
+  voucherNumber   String   @map("voucher_number") @db.VarChar(100)
+  referenceNumber String?  @map("reference_number") @db.VarChar(100)
+  voucherDate     DateTime @map("voucher_date") @db.Date
+  totalAmount     Decimal  @default(0) @map("total_amount") @db.Decimal(18, 2)
+  taxAmount       Decimal  @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  grandTotal      Decimal  @default(0) @map("grand_total") @db.Decimal(18, 2)
+  narration       String?  @db.Text
+  partyLedgerId   String?  @map("party_ledger_id") @db.Uuid
+  isCancelled     Boolean  @default(false) @map("is_cancelled")
+  cancelledAt     DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason    String?  @map("cancel_reason") @db.Text
+  createdById     String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company          Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucherType      VoucherType            @relation(fields: [voucherTypeId], references: [id])
+  createdBy        User                   @relation("VoucherCreatedBy", fields: [createdById], references: [id])
+  voucherEntries   VoucherEntry[]
+  inventoryTxns    InventoryTransaction[]
+  invoice          Invoice?
+  creditNote       CreditNote?
+  debitNote        DebitNote?
+
+  @@unique([companyId, voucherNumber])
+  @@index([companyId])
+  @@index([voucherTypeId])
+  @@index([voucherDate])
+  @@index([createdById])
+  @@map("vouchers")
+}
+
+model VoucherEntry {
+  id        String    @id @default(uuid()) @db.Uuid
+  voucherId String    @map("voucher_id") @db.Uuid
+  ledgerId  String    @map("ledger_id") @db.Uuid
+  entryType EntryType @map("entry_type")
+  amount    Decimal   @db.Decimal(18, 2)
+  narration String?   @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  ledger  Ledger  @relation(fields: [ledgerId], references: [id])
+
+  @@index([voucherId])
+  @@index([ledgerId])
+  @@index([entryType])
+  @@map("voucher_entries")
+}
+
+// =====================================================================
+// INVOICES
+// =====================================================================
+
+model Invoice {
+  id              String              @id @default(uuid()) @db.Uuid
+  companyId       String              @map("company_id") @db.Uuid
+  customerId      String              @map("customer_id") @db.Uuid
+  voucherId       String?             @unique @map("voucher_id") @db.Uuid
+  invoiceNumber   String              @map("invoice_number") @db.VarChar(100)
+  referenceNumber String?             @map("reference_number") @db.VarChar(100)
+  invoiceDate     DateTime            @map("invoice_date") @db.Date
+  dueDate         DateTime?           @map("due_date") @db.Date
+  documentType    InvoiceDocumentType @default(INVOICE) @map("document_type")
+  subtotal        Decimal             @default(0) @db.Decimal(18, 2)
+  discountAmount  Decimal             @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxableAmount   Decimal             @default(0) @map("taxable_amount") @db.Decimal(18, 2)
+  cgstAmount      Decimal             @default(0) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount      Decimal             @default(0) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount      Decimal             @default(0) @map("igst_amount") @db.Decimal(18, 2)
+  cessAmount      Decimal             @default(0) @map("cess_amount") @db.Decimal(18, 2)
+  taxAmount       Decimal             @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  roundOff        Decimal             @default(0) @map("round_off") @db.Decimal(18, 2)
+  grandTotal      Decimal             @default(0) @map("grand_total") @db.Decimal(18, 2)
+  amountPaid      Decimal             @default(0) @map("amount_paid") @db.Decimal(18, 2)
+  balanceDue      Decimal             @default(0) @map("balance_due") @db.Decimal(18, 2)
+  status          InvoiceStatus       @default(DRAFT)
+  notes           String?             @db.Text
+  termsConditions String?             @map("terms_conditions") @db.Text
+  pdfUrl          String?             @map("pdf_url") @db.Text
+  isActive        Boolean             @default(true) @map("is_active")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer       @relation(fields: [customerId], references: [id])
+  voucher     Voucher?       @relation(fields: [voucherId], references: [id])
+  invoiceItems InvoiceItem[]
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId])
+  @@index([customerId])
+  @@index([invoiceDate])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id              String  @id @default(uuid()) @db.Uuid
+  invoiceId       String  @map("invoice_id") @db.Uuid
+  stockItemId     String  @map("stock_item_id") @db.Uuid
+  itemName        String  @map("item_name") @db.VarChar(255)
+  hsnCode         String? @map("hsn_code") @db.VarChar(20)
+  quantity        Decimal @db.Decimal(18, 2)
+  unit            String  @db.VarChar(20)
+  rate            Decimal @db.Decimal(18, 2)
+  discountPercent Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount  Decimal @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxableAmount   Decimal @default(0) @map("taxable_amount") @db.Decimal(18, 2)
+  gstPercentage   Decimal @default(0) @map("gst_percentage") @db.Decimal(5, 2)
+  cgstAmount      Decimal @default(0) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount      Decimal @default(0) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount      Decimal @default(0) @map("igst_amount") @db.Decimal(18, 2)
+  cessAmount      Decimal @default(0) @map("cess_amount") @db.Decimal(18, 2)
+  amount          Decimal @db.Decimal(18, 2)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+
+  @@index([invoiceId])
+  @@index([stockItemId])
+  @@map("invoice_items")
+}
+
+// =====================================================================
+// CREDIT NOTES & DEBIT NOTES
+// =====================================================================
+
+model CreditNote {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  voucherId       String    @unique @map("voucher_id") @db.Uuid
+  noteNumber      String    @map("note_number") @db.VarChar(100)
+  noteDate        DateTime  @map("note_date") @db.Date
+  originalInvoiceId String? @map("original_invoice_id") @db.Uuid
+  reason          String?   @db.Text
+  subtotal        Decimal   @default(0) @db.Decimal(18, 2)
+  taxAmount       Decimal   @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  grandTotal      Decimal   @default(0) @map("grand_total") @db.Decimal(18, 2)
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucher Voucher        @relation(fields: [voucherId], references: [id])
+  items   CreditNoteItem[]
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId])
+  @@index([customerId])
+  @@index([noteDate])
+  @@map("credit_notes")
+}
+
+model CreditNoteItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  creditNoteId String @map("credit_note_id") @db.Uuid
+  stockItemId String  @map("stock_item_id") @db.Uuid
+  itemName    String  @map("item_name") @db.VarChar(255)
+  quantity    Decimal @db.Decimal(18, 2)
+  rate        Decimal @db.Decimal(18, 2)
+  gstPercentage Decimal @default(0) @map("gst_percentage") @db.Decimal(5, 2)
+  amount      Decimal @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  stockItem  StockItem  @relation(fields: [stockItemId], references: [id])
+
+  @@index([creditNoteId])
+  @@index([stockItemId])
+  @@map("credit_note_items")
+}
+
+model DebitNote {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  supplierId      String    @map("supplier_id") @db.Uuid
+  voucherId       String    @unique @map("voucher_id") @db.Uuid
+  noteNumber      String    @map("note_number") @db.VarChar(100)
+  noteDate        DateTime  @map("note_date") @db.Date
+  originalVoucherId String? @map("original_voucher_id") @db.Uuid
+  reason          String?   @db.Text
+  subtotal        Decimal   @default(0) @db.Decimal(18, 2)
+  taxAmount       Decimal   @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  grandTotal      Decimal   @default(0) @map("grand_total") @db.Decimal(18, 2)
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  voucher Voucher       @relation(fields: [voucherId], references: [id])
+  items   DebitNoteItem[]
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId])
+  @@index([supplierId])
+  @@index([noteDate])
+  @@map("debit_notes")
+}
+
+model DebitNoteItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  debitNoteId String  @map("debit_note_id") @db.Uuid
+  stockItemId String  @map("stock_item_id") @db.Uuid
+  itemName    String  @map("item_name") @db.VarChar(255)
+  quantity    Decimal @db.Decimal(18, 2)
+  rate        Decimal @db.Decimal(18, 2)
+  gstPercentage Decimal @default(0) @map("gst_percentage") @db.Decimal(5, 2)
+  amount      Decimal @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  debitNote DebitNote @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
+  stockItem StockItem @relation(fields: [stockItemId], references: [id])
+
+  @@index([debitNoteId])
+  @@index([stockItemId])
+  @@map("debit_note_items")
+}
+
+// =====================================================================
+// GST RECORDS
+// =====================================================================
+
+model GstRecord {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  voucherId     String?  @map("voucher_id") @db.Uuid
+  invoiceId     String?  @map("invoice_id") @db.Uuid
+  gstType       GstType  @map("gst_type")
+  hsnCode       String?  @map("hsn_code") @db.VarChar(20)
+  taxableAmount Decimal  @map("taxable_amount") @db.Decimal(18, 2)
+  cgstAmount    Decimal  @default(0) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount    Decimal  @default(0) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount    Decimal  @default(0) @map("igst_amount") @db.Decimal(18, 2)
+  cessAmount    Decimal  @default(0) @map("cess_amount") @db.Decimal(18, 2)
+  totalTax      Decimal  @map("total_tax") @db.Decimal(18, 2)
+  returnPeriod  String?  @map("return_period") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([gstType])
+  @@index([returnPeriod])
+  @@index([voucherId])
+  @@index([invoiceId])
+  @@map("gst_records")
+}
+
+// =====================================================================
+// BANKING
+// =====================================================================
+
+model BankTransaction {
+  id              String                  @id @default(uuid()) @db.Uuid
+  companyId       String                  @map("company_id") @db.Uuid
+  bankLedgerId    String                  @map("bank_ledger_id") @db.Uuid
+  voucherId       String?                 @map("voucher_id") @db.Uuid
+  transactionType BankTxnType             @map("transaction_type")
+  transactionDate DateTime                @map("transaction_date") @db.Date
+  amount          Decimal                 @db.Decimal(18, 2)
+  reference       String?                 @db.VarChar(100)
+  description     String?                 @db.Text
+  isReconciled    Boolean                 @default(false) @map("is_reconciled")
+  reconciledAt    DateTime?               @map("reconciled_at") @db.Timestamptz(6)
+  reconcileStatus ReconciliationStatus    @default(PENDING) @map("reconcile_status")
+  bankStatementRef String?                @map("bank_statement_ref") @db.VarChar(100)
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankLedger Ledger  @relation(fields: [bankLedgerId], references: [id])
+
+  @@index([companyId])
+  @@index([bankLedgerId])
+  @@index([transactionDate])
+  @@index([isReconciled])
+  @@map("bank_transactions")
+}
+
+model Cheque {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @map("company_id") @db.Uuid
+  chequeNumber String      @map("cheque_number") @db.VarChar(50)
+  chequeDate  DateTime     @map("cheque_date") @db.Date
+  amount      Decimal      @db.Decimal(18, 2)
+  payeeName   String?      @map("payee_name") @db.VarChar(255)
+  partyType   String?      @map("party_type") @db.VarChar(20)
+  partyId     String?      @map("party_id") @db.Uuid
+  bankName    String?      @map("bank_name") @db.VarChar(255)
+  status      ChequeStatus @default(ISSUED)
+  clearedDate DateTime?    @map("cleared_date") @db.Date
+  bouncedDate DateTime?    @map("bounced_date") @db.Date
+  remarks     String?      @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, chequeNumber])
+  @@index([companyId])
+  @@index([status])
+  @@index([chequeDate])
+  @@map("cheques")
+}
+
+// =====================================================================
+// AUDIT LOGS
+// =====================================================================
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  companyId   String?     @map("company_id") @db.Uuid
+  userId      String      @map("user_id") @db.Uuid
+  module      String      @db.VarChar(100)
+  entityType  String      @map("entity_type") @db.VarChar(100)
+  entityId    String?     @map("entity_id") @db.Uuid
+  action      AuditAction
+  description String?     @db.Text
+  oldValue    Json?       @map("old_value") @db.JsonB
+  newValue    Json?       @map("new_value") @db.JsonB
+  ipAddress   String?     @map("ip_address") @db.VarChar(255)
+  userAgent   String?     @map("user_agent") @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company? @relation(fields: [companyId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,29 @@
+{
+  "name": "smarterp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartERP - Billing, Inventory & Accounting Management System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=@smarterp/api",
+    "dev:web": "npm run dev --workspace=@smarterp/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate --workspace=@smarterp/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@smarterp/api",
+    "prisma:seed": "npm run prisma:seed --workspace=@smarterp/api",
+    "prisma:studio": "npm run prisma:studio --workspace=@smarterp/api"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

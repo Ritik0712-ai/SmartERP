@@ -27,7 +27,7 @@ export default function LandingPage() {
           </Button>
         </div>
         <p className="mt-12 text-xs text-muted-foreground">
-          Day 1 build — auth, companies, and full database schema live.
+          Day 2 build — full auth + RBAC live.
         </p>
       </div>
     </main>

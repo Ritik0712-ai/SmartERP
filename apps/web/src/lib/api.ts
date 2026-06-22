@@ -8,10 +8,9 @@ export const api: AxiosInstance = axios.create({
   withCredentials: false,
 });
 
-// Attach access token from localStorage on every request
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem('smarterp_accessToken');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -19,11 +18,61 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// 401 interceptor — Day 2 will wire refresh-token rotation
+// Refresh-on-401 interceptor
+let isRefreshing = false;
+let pendingQueue: Array<{ resolve: (value: any) => void; reject: (err: any) => void }> = [];
+
+function processQueue(error: any, token: string | null = null) {
+  pendingQueue.forEach(({ resolve, reject }) => {
+    error ? reject(error) : resolve(token);
+  });
+  pendingQueue = [];
+}
+
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    // placeholder
+  async (err) => {
+    const original = err.config;
+    if (err.response?.status === 401 && !original._retry && typeof window !== 'undefined') {
+      const refreshToken = localStorage.getItem('smarterp_refreshToken');
+      if (!refreshToken) {
+        return Promise.reject(err);
+      }
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          pendingQueue.push({ resolve, reject });
+        }).then((token) => {
+          original.headers.Authorization = `Bearer ${token}`;
+          return api(original);
+        });
+      }
+      original._retry = true;
+      isRefreshing = true;
+      try {
+        const res = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        if (res.data?.success) {
+          const { accessToken, refreshToken: newRefresh } = res.data.data.tokens;
+          localStorage.setItem('smarterp_accessToken', accessToken);
+          localStorage.setItem('smarterp_refreshToken', newRefresh);
+          processQueue(null, accessToken);
+          original.headers.Authorization = `Bearer ${accessToken}`;
+          return api(original);
+        }
+        throw new Error('Refresh failed');
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        // Force logout
+        localStorage.removeItem('smarterp_accessToken');
+        localStorage.removeItem('smarterp_refreshToken');
+        localStorage.removeItem('smarterp_user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
     return Promise.reject(err);
   },
 );

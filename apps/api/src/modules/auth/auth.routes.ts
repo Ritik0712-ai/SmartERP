@@ -11,6 +11,7 @@ import {
   getProfile,
   changePassword,
 } from './auth.service';
+import { googleAuth } from './google.service';
 
 export const authRouter: Router = Router();
 
@@ -40,6 +41,15 @@ authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
     const result = await loginUser(req.body, reqMeta(req));
+    return ok(res, result);
+  }),
+);
+
+// POST /auth/google — OAuth callback (after Supabase exchanges the Google code)
+authRouter.post(
+  '/google',
+  asyncHandler(async (req, res) => {
+    const result = await googleAuth(req.body, reqMeta(req));
     return ok(res, result);
   }),
 );

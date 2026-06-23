@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { GoogleSignInButton } from '@/components/google-sign-in-button';
 
 const loginFormSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -52,7 +53,17 @@ export default function LoginPage() {
           Use your email and password to access your companies.
         </p>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+        <div className="mt-6">
+          <GoogleSignInButton mode="login" />
+        </div>
+
+        <div className="my-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">OR</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-foreground">Email</label>
             <input

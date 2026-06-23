@@ -41,6 +41,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>;
   register: (data: RegisterInput) => Promise<User>;
   logout: () => Promise<void>;
+  loginWithTokens: (accessToken: string, refreshToken: string, user: User) => Promise<void>;
   setActiveCompanyId: (id: string) => void;
   activeCompanyId: string | null;
 }
@@ -65,7 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null);
 
-  // Hydrate from localStorage on mount
   useEffect(() => {
     try {
       const access = localStorage.getItem(ACCESS_KEY);
@@ -84,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Sync tokens to localStorage
   const persistTokens = useCallback((t: AuthTokens | null) => {
     if (t) {
       localStorage.setItem(ACCESS_KEY, t.accessToken);
@@ -139,6 +138,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [persistTokens],
   );
 
+  const loginWithTokens = useCallback(
+    async (accessToken: string, refreshToken: string, userPayload: User): Promise<void> => {
+      const t: AuthTokens = {
+        accessToken,
+        refreshToken,
+        accessTokenExpiresIn: '15m',
+        refreshTokenExpiresIn: '7d',
+      };
+      setUser(userPayload);
+      setTokens(t);
+      persistTokens(t);
+      localStorage.setItem(USER_KEY, JSON.stringify(userPayload));
+      if (userPayload.companies.length > 0) {
+        setActiveCompanyIdState(userPayload.companies[0].id);
+        localStorage.setItem('smarterp_activeCompanyId', userPayload.companies[0].id);
+      }
+    },
+    [persistTokens],
+  );
+
   const logout = useCallback(async () => {
     try {
       if (tokens?.refreshToken) {
@@ -147,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.post('/auth/logout', {});
       }
     } catch (err) {
-      // ignore errors on logout
+      // ignore
     } finally {
       setUser(null);
       setTokens(null);
@@ -168,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     login,
     register,
+    loginWithTokens,
     logout,
     setActiveCompanyId,
     activeCompanyId,

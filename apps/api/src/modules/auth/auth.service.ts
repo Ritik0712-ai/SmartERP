@@ -51,10 +51,46 @@ const DEFAULT_UNITS = [
 ];
 
 /**
- * Register a new user + bootstrap their first company.
- * NOTE: Supabase transaction pooler doesn't support interactive $transaction,
- * so we use sequential awaits. The user/company creation is idempotent enough
- * for the MVP — a re-registration with the same email will fail with 409.
+ * Run the heavy bootstrap (ledger groups, units, system ledgers) in the background.
+ * Returns immediately. Used after the fast register response.
+ */
+async function runBackgroundBootstrap(companyId: string): Promise<void> {
+  try {
+    console.log(`[bootstrap] starting for company ${companyId}`);
+    const groupIdMap = new Map<string, string>();
+    for (const g of DEFAULT_LEDGER_GROUPS) {
+      const created = await prisma.ledgerGroup.create({
+        data: {
+          companyId,
+          name: g.name,
+          groupType: g.groupType,
+          parentGroupId: g.parent ? groupIdMap.get(g.parent) : null,
+        },
+      });
+      groupIdMap.set(g.name, created.id);
+    }
+    for (const u of DEFAULT_UNITS) {
+      await prisma.unit.create({ data: { ...u, companyId } });
+    }
+    await prisma.stockGroup.create({ data: { companyId, name: 'General' } });
+    await prisma.ledger.createMany({
+      data: [
+        { companyId, ledgerGroupId: groupIdMap.get('Cash')!, name: 'Cash in Hand', isSystem: true },
+        { companyId, ledgerGroupId: groupIdMap.get('Bank')!, name: 'Bank', isSystem: true },
+        { companyId, ledgerGroupId: groupIdMap.get('Sales Account')!, name: 'Sales', isSystem: true },
+        { companyId, ledgerGroupId: groupIdMap.get('Purchase Account')!, name: 'Purchase', isSystem: true },
+      ],
+    });
+    console.log(`[bootstrap] done for company ${companyId}`);
+  } catch (err) {
+    console.error(`[bootstrap] failed for company ${companyId}:`, err);
+  }
+}
+
+/**
+ * FAST register: creates user + company + role + financial year in ~1-2s,
+ * then kicks off the heavy bootstrap (ledger groups, units, system ledgers) in the background.
+ * The user gets logged in immediately; the bootstrap finishes ~30-60s later.
  */
 export async function registerUser(input: unknown, meta: { ip: string; userAgent: string }) {
   const data = registerSchema.parse(input);
@@ -71,7 +107,7 @@ export async function registerUser(input: unknown, meta: { ip: string; userAgent
   const defaultCompanyName = `${data.name.split(' ')[0]}'s Company`;
   const companyName = (body.companyName as string) || defaultCompanyName;
 
-  // Step 1: user
+  // Fast path: 4 inserts that finish in 1-2 seconds
   const user = await prisma.user.create({
     data: {
       name: data.name,
@@ -81,8 +117,6 @@ export async function registerUser(input: unknown, meta: { ip: string; userAgent
       emailVerified: true,
     },
   });
-
-  // Step 2: company
   const company = await prisma.company.create({
     data: {
       name: companyName,
@@ -98,13 +132,9 @@ export async function registerUser(input: unknown, meta: { ip: string; userAgent
       createdById: user.id,
     },
   });
-
-  // Step 3: role
   await prisma.userCompanyRole.create({
     data: { userId: user.id, companyId: company.id, role: UserRole.ADMIN },
   });
-
-  // Step 4: financial year
   await prisma.financialYear.create({
     data: {
       companyId: company.id,
@@ -115,39 +145,7 @@ export async function registerUser(input: unknown, meta: { ip: string; userAgent
     },
   });
 
-  // Step 5: default ledger groups (sequential due to parent references)
-  const groupIdMap = new Map<string, string>();
-  for (const g of DEFAULT_LEDGER_GROUPS) {
-    const created = await prisma.ledgerGroup.create({
-      data: {
-        companyId: company.id,
-        name: g.name,
-        groupType: g.groupType,
-        parentGroupId: g.parent ? groupIdMap.get(g.parent) : null,
-      },
-    });
-    groupIdMap.set(g.name, created.id);
-  }
-
-  // Step 6: default units
-  for (const u of DEFAULT_UNITS) {
-    await prisma.unit.create({ data: { ...u, companyId: company.id } });
-  }
-
-  // Step 7: default stock group
-  await prisma.stockGroup.create({ data: { companyId: company.id, name: 'General' } });
-
-  // Step 8: system ledgers
-  await prisma.ledger.createMany({
-    data: [
-      { companyId: company.id, ledgerGroupId: groupIdMap.get('Cash')!, name: 'Cash in Hand', isSystem: true },
-      { companyId: company.id, ledgerGroupId: groupIdMap.get('Bank')!, name: 'Bank', isSystem: true },
-      { companyId: company.id, ledgerGroupId: groupIdMap.get('Sales Account')!, name: 'Sales', isSystem: true },
-      { companyId: company.id, ledgerGroupId: groupIdMap.get('Purchase Account')!, name: 'Purchase', isSystem: true },
-    ],
-  });
-
-  // Issue tokens
+  // Issue tokens immediately
   const tokens = await issueTokens(user.id, user.email, meta);
 
   await writeAudit({
@@ -158,6 +156,11 @@ export async function registerUser(input: unknown, meta: { ip: string; userAgent
     entityId: user.id,
     action: 'CREATE',
     description: `User ${user.email} registered with company ${company.name}`,
+  });
+
+  // Kick off the heavy bootstrap in the background — don't block the response
+  setImmediate(() => {
+    void runBackgroundBootstrap(company.id);
   });
 
   return {

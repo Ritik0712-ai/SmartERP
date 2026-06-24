@@ -68,6 +68,14 @@ app.use(`/api/${env.apiVersion}/auth`, authRouter);
 app.use(`/api/${env.apiVersion}/companies`, companyRouter);
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
 app.use(`/api/${env.apiVersion}/dashboard`, dashboardRouter);
+import { ledgerGroupRouter } from './modules/ledger-group/ledger-group.routes';
+import { ledgerRouter } from './modules/ledger/ledger.routes';
+import { customerRouter } from './modules/customer/customer.routes';
+import { supplierRouter } from './modules/supplier/supplier.routes';
+app.use(`/api/${env.apiVersion}/ledger-groups`, ledgerGroupRouter);
+app.use(`/api/${env.apiVersion}/ledgers`, ledgerRouter);
+app.use(`/api/${env.apiVersion}/customers`, customerRouter);
+app.use(`/api/${env.apiVersion}/suppliers`, supplierRouter);
 
 // 404 + error handler (must be last)
 app.use(notFoundHandler);

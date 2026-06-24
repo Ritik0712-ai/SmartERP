@@ -96,7 +96,7 @@ function ShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, logout, activeCompanyId } = useAuth();
   const { theme, setTheme, resolved } = useTheme();
-  const activeCompany = user?.companies.find((c) => c.id === activeCompanyId);
+  const activeCompany = (user?.companies ?? []).find((c) => c.id === activeCompanyId);
 
   // Global keyboard listener
   useGlobalKeyboardListener();

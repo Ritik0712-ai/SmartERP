@@ -104,10 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       if (!res.data.success) throw new Error((res.data as ApiError).error.message);
       const data = (res.data as ApiSuccess<{ user: User; tokens: AuthTokens; companies: any[] }>).data;
-      setUser(data.user);
+      setUser({ ...data.user, companies: data.companies });
       setTokens(data.tokens);
       persistTokens(data.tokens);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, companies: data.companies }));
       if (data.companies.length > 0) {
         setActiveCompanyIdState(data.companies[0].id);
         localStorage.setItem('smarterp_activeCompanyId', data.companies[0].id);
@@ -125,10 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       if (!res.data.success) throw new Error((res.data as ApiError).error.message);
       const data = (res.data as ApiSuccess<{ user: User; tokens: AuthTokens; companies: any[] }>).data;
-      setUser(data.user);
+      setUser({ ...data.user, companies: data.companies });
       setTokens(data.tokens);
       persistTokens(data.tokens);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, companies: data.companies }));
       if (data.companies.length > 0) {
         setActiveCompanyIdState(data.companies[0].id);
         localStorage.setItem('smarterp_activeCompanyId', data.companies[0].id);

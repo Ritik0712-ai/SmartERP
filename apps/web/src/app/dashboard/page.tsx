@@ -63,7 +63,7 @@ function ChartBars({ data }: { data: { label: string; sales: number; purchases: 
 function DashboardContent() {
   const router = useRouter();
   const { user, activeCompanyId } = useAuth();
-  const activeCompany = user?.companies.find((c) => c.id === activeCompanyId);
+  const activeCompany = (user?.companies ?? []).find((c) => c.id === activeCompanyId);
 
   useEffect(() => {
     if (user && (!activeCompanyId || !activeCompany)) {

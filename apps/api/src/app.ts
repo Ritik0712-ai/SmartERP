@@ -66,6 +66,8 @@ import { authRouter } from './modules/auth/auth.routes';
 import { companyRouter } from './modules/company/company.routes';
 app.use(`/api/${env.apiVersion}/auth`, authRouter);
 app.use(`/api/${env.apiVersion}/companies`, companyRouter);
+import { dashboardRouter } from './modules/dashboard/dashboard.routes';
+app.use(`/api/${env.apiVersion}/dashboard`, dashboardRouter);
 
 // 404 + error handler (must be last)
 app.use(notFoundHandler);

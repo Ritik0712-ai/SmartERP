@@ -24,11 +24,11 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { CommandPalette } from '@/components/command-palette';
+// palette moved to GlobalKeyboard
 import {
-  useGlobalKeyboardListener,
-  useAppShortcuts,
-  setPaletteOpener,
+
+
+
 } from '@/hooks/use-keyboard-shortcuts';
 import { useTheme } from '@/lib/theme';
 
@@ -91,34 +91,13 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
 
 function ShellInner({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, activeCompanyId } = useAuth();
   const { theme, setTheme, resolved } = useTheme();
   const activeCompany = (user?.companies ?? []).find((c) => c.id === activeCompanyId);
 
-  // Global keyboard listener
-  useGlobalKeyboardListener();
-
-  // App shortcuts (Ctrl+K, Ctrl+H, F1, F8, F9, Ctrl+Shift+T, Ctrl+Shift+L)
-  useAppShortcuts({
-    onOpenPalette: () => setPaletteOpen(true),
-    onLogout: async () => {
-      await logout();
-      router.push('/login');
-    },
-    onToggleTheme: () => {
-      const next = resolved === 'dark' ? 'light' : 'dark';
-      setTheme(next);
-    },
-  });
-
-  // Expose palette opener for the topbar button
-  useEffect(() => {
-    setPaletteOpener(() => setPaletteOpen(true));
-    return () => setPaletteOpener(null);
-  }, []);
 
   async function handleLogout() {
     await logout();
@@ -127,7 +106,7 @@ function ShellInner({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+
 
       {/* Sidebar */}
       <aside

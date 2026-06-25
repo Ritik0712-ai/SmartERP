@@ -1,40 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 
 interface ShortcutConfig {
-  key: string;
+  key?: string;
+  code?: string;
   ctrl?: boolean;
   meta?: boolean;
   shift?: boolean;
   alt?: boolean;
   action: () => void;
   description?: string;
-}
-
-let shortcuts: ShortcutConfig[] = [];
-let openPaletteHandler: (() => void) | null = null;
-
-export function setPaletteOpener(fn: (() => void) | null) {
-  openPaletteHandler = fn;
-}
-
-export function openCommandPalette() {
-  openPaletteHandler?.();
-}
-
-/**
- * Register a global keyboard shortcut. Pass an empty deps array.
- */
-export function useKeyboardShortcuts(config: ShortcutConfig) {
-  useEffect(() => {
-    shortcuts.push(config);
-    return () => {
-      shortcuts = shortcuts.filter((s) => s !== config);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 }
 
 function isTextInput(el: EventTarget | null): boolean {
@@ -45,56 +21,53 @@ function isTextInput(el: EventTarget | null): boolean {
   return false;
 }
 
-function handleKeyDown(e: KeyboardEvent) {
-  // Don't intercept when typing in an input — except for Escape and Ctrl+K
-  if (isTextInput(e.target) && e.key !== 'Escape' && !(e.ctrlKey || e.metaKey)) {
-    return;
-  }
-
-  for (const s of shortcuts) {
-    if (e.key.toLowerCase() !== s.key.toLowerCase()) continue;
-    if (Boolean(s.ctrl) !== e.ctrlKey) continue;
-    if (Boolean(s.meta) !== e.metaKey) continue;
-    if (Boolean(s.shift) !== e.shiftKey) continue;
-    if (Boolean(s.alt) !== e.altKey) continue;
-    e.preventDefault();
-    s.action();
-    return;
-  }
+function matchesShortcut(s: ShortcutConfig, e: KeyboardEvent): boolean {
+  if (s.code && e.code !== s.code) return false;
+  if (!s.code && s.key && e.key.toLowerCase() !== s.key.toLowerCase()) return false;
+  if (Boolean(s.ctrl) !== e.ctrlKey) return false;
+  if (Boolean(s.meta) !== e.metaKey) return false;
+  if (Boolean(s.shift) !== e.shiftKey) return false;
+  if (Boolean(s.alt) !== e.altKey) return false;
+  return true;
 }
 
-/**
- * Mount the global key listener. Call once at app root.
- */
-export function useGlobalKeyboardListener() {
+export function useKeyboardShortcuts(config: ShortcutConfig) {
+  const ref = useRef(config);
+  ref.current = config;
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    const handler = (e: KeyboardEvent) => {
+      if (isTextInput(e.target) && !(e.ctrlKey || e.metaKey || e.altKey)) return;
+      if (!matchesShortcut(ref.current, e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      ref.current.action();
+    };
+    document.addEventListener('keydown', handler, { capture: true });
+    return () => document.removeEventListener('keydown', handler, { capture: true } as any);
   }, []);
 }
 
-/**
- * Pre-defined shortcuts for the app.
- */
+export function useGlobalKeyboardListener() {
+  // No-op (each shortcut has its own listener)
+}
+
 export function useAppShortcuts(opts: {
   onOpenPalette: () => void;
   onLogout: () => void;
   onToggleTheme: () => void;
 }) {
-  const router = useRouter();
-  // Ctrl+K — command palette
-  useKeyboardShortcuts({ key: 'k', ctrl: true, meta: true, action: opts.onOpenPalette });
-  // Ctrl+H — dashboard
-  useKeyboardShortcuts({ key: 'h', ctrl: true, meta: true, action: () => router.push('/dashboard') });
+  // Ctrl+K on Windows/Linux, Cmd+K on Mac
+  useKeyboardShortcuts({ code: 'KeyK', ctrl: true, meta: true, action: opts.onOpenPalette });
+  // Ctrl+H (Cmd+H) — dashboard
+  useKeyboardShortcuts({ code: 'KeyH', ctrl: true, meta: true, action: () => { window.location.href = '/dashboard'; } });
   // F1 — companies
-  useKeyboardShortcuts({ key: 'F1', action: () => router.push('/companies/select') });
-  // F8 — sales voucher (placeholder route for now)
-  useKeyboardShortcuts({ key: 'F8', action: () => router.push('/transactions/vouchers/sales/new') });
-  // F9 — purchase voucher (placeholder route for now)
-  useKeyboardShortcuts({ key: 'F9', action: () => router.push('/transactions/vouchers/purchase/new') });
-  // Ctrl+Shift+T — toggle theme
-  useKeyboardShortcuts({ key: 't', ctrl: true, meta: true, shift: true, action: opts.onToggleTheme });
-  // Ctrl+Shift+L — logout
-  useKeyboardShortcuts({ key: 'l', ctrl: true, meta: true, shift: true, action: opts.onLogout });
-  // ESC handled at the page level (close palette, etc.)
+  useKeyboardShortcuts({ code: 'F1', action: () => { window.location.href = '/companies/select'; } });
+  // F8 — sales voucher
+  useKeyboardShortcuts({ code: 'F8', action: () => { window.location.href = '/transactions/vouchers/sales/new'; } });
+  // F9 — purchase voucher
+  useKeyboardShortcuts({ code: 'F9', action: () => { window.location.href = '/transactions/vouchers/purchase/new'; } });
+  // Ctrl+Shift+T (Cmd+Shift+T) — toggle theme
+  useKeyboardShortcuts({ code: 'KeyT', ctrl: true, meta: true, shift: true, action: opts.onToggleTheme });
+  // Ctrl+Shift+L (Cmd+Shift+L) — logout
+  useKeyboardShortcuts({ code: 'KeyL', ctrl: true, meta: true, shift: true, action: opts.onLogout });
 }

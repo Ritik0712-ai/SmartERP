@@ -99,7 +99,7 @@ export async function createLedger(userId: string, companyId: string, input: unk
 }
 
 export async function updateLedger(userId: string, companyId: string, id: string, input: unknown, req?: Request) {
-  const data = updateLedgerSchema.parse(req.body);
+  const data = updateLedgerSchema.parse(input);
   const old = await getLedger(companyId, id);
   if (data.name && data.name !== old.name) {
     const existing = await prisma.ledger.findFirst({

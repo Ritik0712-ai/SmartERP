@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { PageHeader, NewButton } from '@/components/page-header';
+import { PageHeader } from '@/components/page-header';
 import { Plus, Pencil, Trash2, Search, Loader2, FolderTree, X, Save } from 'lucide-react';
 import { api, ApiSuccess, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -91,7 +91,7 @@ function LedgerGroupsContent() {
         <PageHeader
           title="Ledger Groups"
           description="Hierarchical chart of accounts — 4 types: Asset, Liability, Income, Expense"
-          actions={<NewButton href="#" onClick={() => { setEditing(null); setShowForm(true); }} label="New Group" />}
+          actions={<Button onClick={() => { setEditing(null); setShowForm(true); }}><Plus className="mr-2 h-4 w-4" /> New Group</Button>}
         />
         <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-md">

@@ -91,6 +91,7 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
 
 function ShellInner({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   
   const pathname = usePathname();
   const router = useRouter();

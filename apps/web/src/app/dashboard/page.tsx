@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { useKpis, useSalesChart, useRecentVouchers } from '@/hooks/use-dashboard-data';
 import { formatCurrency } from '@/lib/utils';
 
-function ChartBars({ data }: { data: { label: string; sales: number; purchases: number }[] }) {
+function ChartBars({ data }: { data: { month: string; label: string; sales: number; purchases: number }[] }) {
   if (data.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">

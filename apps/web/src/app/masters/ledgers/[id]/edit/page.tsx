@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { ProtectedRoute } from '@/components/protected-route';
-import { LedgerForm } from '@/app/masters/ledgers/new/page';
+import { LedgerForm } from '@/components/ledger-form';
 
 export default function EditLedgerPage() {
   const params = useParams<{ id: string }>();

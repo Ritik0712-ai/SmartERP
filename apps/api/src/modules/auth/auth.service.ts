@@ -182,6 +182,7 @@ export async function loginUser(input: unknown, meta: { ip: string; userAgent: s
     },
   });
   if (!user || !user.isActive) throw new UnauthorizedError('Invalid credentials');
+  if (!user.passwordHash) throw new UnauthorizedError('Invalid credentials');
   const ok = await verifyPassword(data.password, user.passwordHash);
   if (!ok) throw new UnauthorizedError('Invalid credentials');
 
@@ -209,11 +210,11 @@ export async function loginUser(input: unknown, meta: { ip: string; userAgent: s
 export async function refreshTokens(input: unknown, meta: { ip: string; userAgent: string }) {
   const { refreshToken } = refreshSchema.parse(input);
   const tokenHash = hashRefreshToken(refreshToken);
-  const stored = await prisma.refreshToken.findUnique({
-    where: { tokenHash },
+  const stored = await prisma.refreshToken.findFirst({
+    where: { tokenHash, revoked: false, expiresAt: { gt: new Date() } },
     include: { user: true },
   });
-  if (!stored || stored.revoked || stored.expiresAt < new Date()) {
+  if (!stored) {
     throw new UnauthorizedError('Invalid or expired refresh token');
   }
   const newTokens = await issueTokens(stored.userId, stored.user.email, meta);
@@ -275,6 +276,7 @@ export async function getProfile(userId: string) {
 export async function changePassword(userId: string, oldPassword: string, newPassword: string) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundError('User not found');
+  if (!user.passwordHash) throw new BadRequestError('No password set — user may have signed up via Google');
   const ok = await verifyPassword(oldPassword, user.passwordHash);
   if (!ok) throw new UnauthorizedError('Current password is incorrect');
   if (newPassword.length < 8) throw new BadRequestError('New password must be at least 8 characters');

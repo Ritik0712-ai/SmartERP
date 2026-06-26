@@ -72,10 +72,16 @@ import { ledgerGroupRouter } from './modules/ledger-group/ledger-group.routes';
 import { ledgerRouter } from './modules/ledger/ledger.routes';
 import { customerRouter } from './modules/customer/customer.routes';
 import { supplierRouter } from './modules/supplier/supplier.routes';
+import { unitRouter } from './modules/unit/unit.routes';
+import { stockGroupRouter } from './modules/stock-group/stock-group.routes';
+import { stockItemRouter } from './modules/stock-item/stock-item.routes';
 app.use(`/api/${env.apiVersion}/ledger-groups`, ledgerGroupRouter);
 app.use(`/api/${env.apiVersion}/ledgers`, ledgerRouter);
 app.use(`/api/${env.apiVersion}/customers`, customerRouter);
 app.use(`/api/${env.apiVersion}/suppliers`, supplierRouter);
+app.use(`/api/${env.apiVersion}/units`, unitRouter);
+app.use(`/api/${env.apiVersion}/stock-groups`, stockGroupRouter);
+app.use(`/api/${env.apiVersion}/stock-items`, stockItemRouter);
 
 // 404 + error handler (must be last)
 app.use(notFoundHandler);

@@ -9,7 +9,7 @@ import {
   ReactNode,
   createElement,
 } from 'react';
-import { api, ApiSuccess, ApiError } from './api';
+import { api } from './api';
 
 export interface User {
   id: string;
@@ -98,42 +98,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string): Promise<User> => {
-      const res = await api.post<ApiSuccess<{ user: User; tokens: AuthTokens; companies: any[] }> | ApiError>(
-        '/auth/login',
-        { email, password },
-      );
-      if (!res.data.success) throw new Error((res.data as ApiError).error.message);
-      const data = (res.data as ApiSuccess<{ user: User; tokens: AuthTokens; companies: any[] }>).data;
-      setUser({ ...data.user, companies: data.companies });
-      setTokens(data.tokens);
-      persistTokens(data.tokens);
-      localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, companies: data.companies }));
-      if (data.companies.length > 0) {
-        setActiveCompanyIdState(data.companies[0].id);
-        localStorage.setItem('smarterp_activeCompanyId', data.companies[0].id);
+      const res = await api.post('/auth/login', { email, password });
+      if (!res.data.success) {
+        const err = res.data as { success: false; error: { message: string } };
+        throw new Error(err.error?.message ?? 'Login failed');
       }
-      return data.user;
+      const data = res.data as { success: true; data: { user: User; tokens: AuthTokens; companies: any[] } };
+      const userData = { ...data.data.user, companies: data.data.companies };
+      setUser(userData);
+      setTokens(data.data.tokens);
+      persistTokens(data.data.tokens);
+      localStorage.setItem(USER_KEY, JSON.stringify(userData));
+      if (data.data.companies.length > 0) {
+        setActiveCompanyIdState(data.data.companies[0].id);
+        localStorage.setItem('smarterp_activeCompanyId', data.data.companies[0].id);
+      }
+      return data.data.user;
     },
     [persistTokens],
   );
 
   const register = useCallback(
     async (input: RegisterInput): Promise<User> => {
-      const res = await api.post<ApiSuccess<{ user: User; tokens: AuthTokens; companies: any[] }> | ApiError>(
-        '/auth/register',
-        input,
-      );
-      if (!res.data.success) throw new Error((res.data as ApiError).error.message);
-      const data = (res.data as ApiSuccess<{ user: User; tokens: AuthTokens; companies: any[] }>).data;
-      setUser({ ...data.user, companies: data.companies });
-      setTokens(data.tokens);
-      persistTokens(data.tokens);
-      localStorage.setItem(USER_KEY, JSON.stringify({ ...data.user, companies: data.companies }));
-      if (data.companies.length > 0) {
-        setActiveCompanyIdState(data.companies[0].id);
-        localStorage.setItem('smarterp_activeCompanyId', data.companies[0].id);
+      const res = await api.post('/auth/register', input);
+      if (!res.data.success) {
+        const err = res.data as { success: false; error: { message: string } };
+        throw new Error(err.error?.message ?? 'Registration failed');
       }
-      return data.user;
+      const data = res.data as { success: true; data: { user: User; tokens: AuthTokens; companies: any[] } };
+      const userData = { ...data.data.user, companies: data.data.companies };
+      setUser(userData);
+      setTokens(data.data.tokens);
+      persistTokens(data.data.tokens);
+      localStorage.setItem(USER_KEY, JSON.stringify(userData));
+      if (data.data.companies.length > 0) {
+        setActiveCompanyIdState(data.data.companies[0].id);
+        localStorage.setItem('smarterp_activeCompanyId', data.data.companies[0].id);
+      }
+      return data.data.user;
     },
     [persistTokens],
   );

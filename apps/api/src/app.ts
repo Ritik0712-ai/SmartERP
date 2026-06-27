@@ -8,7 +8,6 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 
-// Security & parsing
 app.use(helmet());
 app.use(
   cors({
@@ -19,7 +18,6 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limit on /api/*
 const apiLimiter = rateLimit({
   windowMs: env.rateLimit.windowMs,
   max: env.rateLimit.max,
@@ -31,11 +29,8 @@ const apiLimiter = rateLimit({
   },
 });
 app.use(`/api/${env.apiVersion}`, apiLimiter);
-
-// Logging
 app.use(requestLogger);
 
-// Health check
 app.get('/health', (_req, res) => {
   res.json({
     success: true,
@@ -49,7 +44,6 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// API root
 app.get(`/api/${env.apiVersion}`, (_req, res) => {
   res.json({
     success: true,
@@ -61,13 +55,9 @@ app.get(`/api/${env.apiVersion}`, (_req, res) => {
   });
 });
 
-// Module routes — wired in Day 2+
 import { authRouter } from './modules/auth/auth.routes';
 import { companyRouter } from './modules/company/company.routes';
-app.use(`/api/${env.apiVersion}/auth`, authRouter);
-app.use(`/api/${env.apiVersion}/companies`, companyRouter);
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
-app.use(`/api/${env.apiVersion}/dashboard`, dashboardRouter);
 import { ledgerGroupRouter } from './modules/ledger-group/ledger-group.routes';
 import { ledgerRouter } from './modules/ledger/ledger.routes';
 import { customerRouter } from './modules/customer/customer.routes';
@@ -75,6 +65,11 @@ import { supplierRouter } from './modules/supplier/supplier.routes';
 import { unitRouter } from './modules/unit/unit.routes';
 import { stockGroupRouter } from './modules/stock-group/stock-group.routes';
 import { stockItemRouter } from './modules/stock-item/stock-item.routes';
+import { voucherRouter } from './modules/voucher/voucher.routes';
+
+app.use(`/api/${env.apiVersion}/auth`, authRouter);
+app.use(`/api/${env.apiVersion}/companies`, companyRouter);
+app.use(`/api/${env.apiVersion}/dashboard`, dashboardRouter);
 app.use(`/api/${env.apiVersion}/ledger-groups`, ledgerGroupRouter);
 app.use(`/api/${env.apiVersion}/ledgers`, ledgerRouter);
 app.use(`/api/${env.apiVersion}/customers`, customerRouter);
@@ -82,8 +77,8 @@ app.use(`/api/${env.apiVersion}/suppliers`, supplierRouter);
 app.use(`/api/${env.apiVersion}/units`, unitRouter);
 app.use(`/api/${env.apiVersion}/stock-groups`, stockGroupRouter);
 app.use(`/api/${env.apiVersion}/stock-items`, stockItemRouter);
+app.use(`/api/${env.apiVersion}/vouchers`, voucherRouter);
 
-// 404 + error handler (must be last)
 app.use(notFoundHandler);
 app.use(errorHandler);
 

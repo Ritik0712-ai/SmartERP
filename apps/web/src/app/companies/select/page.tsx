@@ -51,6 +51,7 @@ function CompanySelectContent() {
     }, []);
 
     function openCompany(id: string) {
+        localStorage.setItem('smarterp_activeCompanyId', id);
         setActiveCompanyId(id);
         router.push('/dashboard');
     }

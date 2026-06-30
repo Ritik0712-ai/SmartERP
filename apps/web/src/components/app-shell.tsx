@@ -53,6 +53,11 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
     items: [
       { href: '/transactions/vouchers/sales/new', label: 'Sales Voucher', icon: ArrowLeftRight, shortcut: 'F8' },
       { href: '/transactions/vouchers/purchase/new', label: 'Purchase Voucher', icon: ArrowLeftRight, shortcut: 'F9' },
+      { href: '/transactions/vouchers/receipt/new', label: 'Receipt Voucher', icon: ArrowLeftRight },
+      { href: '/transactions/vouchers/payment/new', label: 'Payment Voucher', icon: ArrowLeftRight },
+      { href: '/transactions/vouchers/contra/new', label: 'Contra Voucher', icon: ArrowLeftRight },
+      { href: '/transactions/vouchers/journal/new', label: 'Journal Voucher', icon: ArrowLeftRight },
+      { href: '/transactions/credit-notes/new', label: 'Credit Note', icon: ArrowLeftRight },
       { href: '/transactions/vouchers', label: 'All Vouchers', icon: ArrowLeftRight },
     ],
   },

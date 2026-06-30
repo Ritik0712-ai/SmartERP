@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -24,12 +24,6 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
-// palette moved to GlobalKeyboard
-import {
-
-
-
-} from '@/hooks/use-keyboard-shortcuts';
 import { useTheme } from '@/lib/theme';
 
 interface NavItem {
@@ -89,16 +83,13 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
   },
 ];
 
-function ShellInner({ children }: { children: ReactNode }) {
+export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, activeCompanyId } = useAuth();
-  const { theme, setTheme, resolved } = useTheme();
+  const { theme } = useTheme();
   const activeCompany = (user?.companies ?? []).find((c) => c.id === activeCompanyId);
-
 
   async function handleLogout() {
     await logout();
@@ -107,8 +98,6 @@ function ShellInner({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-
-
       {/* Sidebar */}
       <aside
         className={cn(
@@ -118,7 +107,7 @@ function ShellInner({ children }: { children: ReactNode }) {
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-2 border-b border-border px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-lg">
             S
           </div>
           {!collapsed && (
@@ -148,7 +137,9 @@ function ShellInner({ children }: { children: ReactNode }) {
               <ul>
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const active = pathname === item.href || pathname.startsWith(item.href + '/');
+                  const isExact = pathname === item.href;
+                  const isChild = pathname.startsWith(item.href + '/');
+                  const active = isExact || (!isChild && pathname.startsWith(item.href));
                   return (
                     <li key={item.href}>
                       <Link
@@ -186,7 +177,7 @@ function ShellInner({ children }: { children: ReactNode }) {
           {!collapsed ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 px-2 py-1">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-secondary-foreground text-xs font-semibold">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
                   {user?.name?.[0]?.toUpperCase() ?? 'U'}
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -232,17 +223,6 @@ function ShellInner({ children }: { children: ReactNode }) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Command palette trigger */}
-            <button
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              className="hidden items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground md:flex"
-              aria-label="Open command palette"
-            >
-              <Command className="h-3.5 w-3.5" />
-              <span>Search</span>
-              <kbd className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
-            </button>
             <ThemeToggle />
             <Link href="/profile">
               <Button variant="ghost" size="sm">
@@ -259,8 +239,4 @@ function ShellInner({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
-}
-
-export function AppShell({ children }: { children: ReactNode }) {
-  return <ShellInner>{children}</ShellInner>;
 }

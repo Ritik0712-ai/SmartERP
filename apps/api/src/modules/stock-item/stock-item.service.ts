@@ -43,7 +43,7 @@ export const listQuerySchema = z.object({
   includeInactive: z.coerce.boolean().default(false),
   lowStockOnly: z.coerce.boolean().default(false),
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  pageSize: z.coerce.number().int().positive().max(1000).default(20),
 });
 
 export async function listStockItems(
